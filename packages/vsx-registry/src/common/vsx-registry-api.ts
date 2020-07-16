@@ -15,9 +15,11 @@
  ********************************************************************************/
 
 import * as bent from 'bent';
+import * as semver from 'semver';
 import { injectable, inject } from 'inversify';
-import { VSXExtensionRaw, VSXSearchParam, VSXSearchResult } from './vsx-registry-types';
+import { VSXExtensionRaw, VSXSearchParam, VSXSearchResult, VSXAllVersions } from './vsx-registry-types';
 import { VSXEnvironment } from './vsx-environment';
+import { VSXApiVersionProvider } from './vsx-api-version-provider';
 
 const fetchText = bent('GET', 'string', 200);
 const fetchJson = bent('GET', {
@@ -41,6 +43,9 @@ export namespace VSXResponseError {
 
 @injectable()
 export class VSXRegistryAPI {
+
+    @inject(VSXApiVersionProvider)
+    protected readonly apiVersionProvider: VSXApiVersionProvider;
 
     @inject(VSXEnvironment)
     protected readonly environment: VSXEnvironment;
@@ -89,8 +94,62 @@ export class VSXRegistryAPI {
         return postJson(url, JSON.stringify(payload)) as Promise<R>;
     }
 
+    async getExtensionVersion(id: string, version?: string): Promise<VSXExtensionRaw> {
+        const apiUri = await this.environment.getRegistryApiUri();
+        return this.fetchJson(apiUri.resolve(id.replace('.', '/')).toString() + `/${version}`);
+    }
+
     fetchText(url: string): Promise<string> {
         return fetchText(url);
+    }
+
+    /**
+     * Get the latest compatible extension version.
+     * - an extension satisfies compatibility if its `engines.vscode` version is supported.
+     * @param id the extension id.
+     *
+     * @returns the data for the latest compatible extension version if available, else `undefined`.
+     */
+    async getLatestCompatibleExtensionVersion(id: string): Promise<VSXExtensionRaw | undefined> {
+        const extension = await this.getExtension(id);
+        for (const extensionVersion in extension.allVersions) {
+            if (extensionVersion === 'latest') {
+                continue;
+            }
+            const apiUri = await this.environment.getRegistryApiUri();
+            const data: VSXExtensionRaw = await this.fetchJson(apiUri.resolve(id.replace('.', '/')).toString() + `/${extensionVersion}`);
+            if (data.engines && this.isEngineValid(data.engines.vscode)) {
+                return data;
+            }
+        }
+    }
+
+    /**
+     * Get the latest compatible version of an extension.
+     * @param versions the `allVersions` property.
+     *
+     * @returns the latest compatible version of an extension if it exists, else `undefined`.
+     */
+    getLatestCompatibleVersion(versions: VSXAllVersions[]): VSXAllVersions | undefined {
+        for (const version of versions) {
+            if (this.isEngineValid(version.engines?.vscode)) {
+                return version;
+            }
+        }
+    }
+
+    /**
+     * Determine if the engine is valid.
+     * @param engine the engine.
+     *
+     * @returns `true` if the engine satisfies the API version.
+     */
+    protected isEngineValid(engine?: string): boolean {
+        if (!engine) {
+            return false;
+        }
+        const apiVersion = this.apiVersionProvider.getApiVersion();
+        return engine === '*' || semver.satisfies(apiVersion, engine);
     }
 
 }
