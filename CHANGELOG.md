@@ -4,10 +4,14 @@
 
 - [git] the changes in the commit details (opened from the history view) and in the diff view (opened with 'Compare With...' on a folder's context menu) are now switchable between 'list' and 'tree' modes [#8084](https://github.com/eclipse-theia/theia/pull/8084)
 - [scm] show in the commit textbox the branch to which the commit will go [#6156](https://github.com/eclipse-theia/theia/pull/6156)
+- [filesystem] file watchers refactoring:
+  - Added `FileSystemWatcherService` component that should be a singleton centralizing watch requests for all clients.
+  - Added `FileSystemWatcherServiceDispatcher` to register yourself and listen to file change events.
 
 <a name="breaking_changes_1.7.0">[Breaking Changes:](#breaking_changes_1.7.0)</a>
 
 - [plugin-metrics] renamed `AnalyticsFromRequests.succesfulResponses` to `AnalyticsFromRequests.successfulResponses` []()
+- [filesystem] `NsfwFileSystemWatcherServer` is deprecated and no longer used.
 
 ## v1.6.0 - 24/09/2020
 
